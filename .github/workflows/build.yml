@@ -13,6 +13,11 @@ jobs:
           channel: stable
       - name: Create Android project files
         run: flutter create --org com.itzluxurious --project-name kirana_calculator --platforms=android .
+      - name: Android setup (internet, test ads, minSdk)
+        run: |
+          sed -i 's#<application#<uses-permission android:name="android.permission.INTERNET"/><application#' android/app/src/main/AndroidManifest.xml
+          sed -i 's#</application>#<meta-data android:name="com.google.android.gms.ads.APPLICATION_ID" android:value="ca-app-pub-3940256099942544~3347511713"/></application>#' android/app/src/main/AndroidManifest.xml
+          sed -i 's/flutter.minSdkVersion/24/' android/app/build.gradle.kts android/app/build.gradle 2>/dev/null || true
       - run: flutter pub get
       - run: flutter build apk --release
       - uses: actions/upload-artifact@v4
