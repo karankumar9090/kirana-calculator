@@ -13,21 +13,18 @@ jobs:
           channel: stable
       - name: Create Android project files
         run: flutter create --org com.itzluxurious --project-name kirana_calculator --platforms=android .
-      - name: Android setup (internet, test ads, minSdk)
+      - name: Android setup (internet, app name)
         run: |
           python3 - <<'PY'
-          import re
           f = 'android/app/src/main/AndroidManifest.xml'
           s = open(f).read()
           s = s.replace('android:label="kirana_calculator"', 'android:label="Kirana Calculator"')
           s = s.replace('<application', '<uses-permission android:name="android.permission.INTERNET"/>\n    <application', 1)
-          s = re.sub(r'(<application[^>]*>)', r'\1\n        <meta-data android:name="com.google.android.gms.ads.APPLICATION_ID" android:value="ca-app-pub-3940256099942544~3347511713"/>', s, count=1)
           open(f, 'w').write(s)
           PY
           cat android/app/src/main/AndroidManifest.xml
-          sed -i 's/flutter.minSdkVersion/24/' android/app/build.gradle.kts android/app/build.gradle 2>/dev/null || true
       - run: flutter pub get
-      - run: flutter build apk --release --no-shrink
+      - run: flutter build apk --release
       - uses: actions/upload-artifact@v4
         with:
           name: kirana-apk
@@ -48,7 +45,7 @@ jobs:
             adb logcat -c
             adb shell monkey -p com.itzluxurious.kirana_calculator -c android.intent.category.LAUNCHER 1
             sleep 20
+            echo ===== APP STATUS =====
+            adb shell pidof com.itzluxurious.kirana_calculator || echo APP-NOT-RUNNING-CRASHED
             echo ===== CRASH LOG =====
-            adb logcat -d -b crash | head -80
-            echo ===== ERRORS =====
-            adb logcat -d AndroidRuntime:E flutter:V *:S | head -80
+            adb logcat -d -b crash | head -60
