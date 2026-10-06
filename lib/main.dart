@@ -1,20 +1,35 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:url_launcher/url_launcher.dart';
 
-void main() => runApp(const KiranaApp());
-
+// ---------- Settings ----------
 const String kTelegramUser = '@Itz_Luxurious';
+const String kTelegramLink = 'https://t.me/Itz_Luxurious';
+// Google's official TEST banner id. Replace with your real AdMob banner id before the Play Store release.
+const String kBannerId = 'ca-app-pub-3940256099942544/6300978111';
+// Set to true only after Google Play payment is connected.
+const bool kPayReady = false;
+const String kRemoveAdsPrice = '₹49';
+// ------------------------------
 
-class Pal {
-  final Color bg, surface, line, accent, onAccent, text, muted;
-  const Pal(this.bg, this.surface, this.line, this.accent, this.onAccent,
-      this.text, this.muted);
+void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  MobileAds.instance.initialize();
+  runApp(const KiranaApp());
 }
 
-const Pal kLight = Pal(Color(0xFFF7F5EF), Color(0xFFFFFFFF), Color(0xFFE3DFD2),
-    Color(0xFF1F7A4D), Color(0xFFFFFFFF), Color(0xFF1B2420), Color(0xFF6E7B74));
-const Pal kDark = Pal(Color(0xFF0E1512), Color(0xFF16211C), Color(0xFF27382F),
-    Color(0xFF4CC38A), Color(0xFF08140E), Color(0xFFEEF3F0), Color(0xFF8FA39A));
+class Pal {
+  final Color bg, surface, line, accent, onAccent, text, muted, accentText;
+  const Pal(this.bg, this.surface, this.line, this.accent, this.onAccent,
+      this.text, this.muted, this.accentText);
+}
+
+const Pal kLight = Pal(Color(0xFFF6F9FD), Color(0xFFFFFFFF), Color(0xFFE1E8F2),
+    Color(0xFF4A9BEA), Color(0xFFFFFFFF), Color(0xFF1B2430), Color(0xFF6B7785), Color(0xFF2F7FD0));
+const Pal kDark = Pal(Color(0xFF0D141C), Color(0xFF16212C), Color(0xFF26384A),
+    Color(0xFF5AA9F0), Color(0xFF06121D), Color(0xFFEAF1F8), Color(0xFF8CA0B3), Color(0xFF5AA9F0));
 
 String n(double v) => v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(1);
 String m(double v) => v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(2);
@@ -43,7 +58,11 @@ class KiranaApp extends StatelessWidget {
   Widget build(BuildContext context) => MaterialApp(
         title: 'Kirana Calculator',
         debugShowCheckedModeBanner: false,
-        theme: ThemeData(useMaterial3: true, colorSchemeSeed: const Color(0xFF1F7A4D)),
+        theme: ThemeData(
+          useMaterial3: true,
+          colorSchemeSeed: const Color(0xFF4A9BEA),
+          textTheme: GoogleFonts.notoSansDevanagariTextTheme(),
+        ),
         home: const Home(),
       );
 }
@@ -55,8 +74,10 @@ class Home extends StatefulWidget {
 }
 
 class _HomeState extends State<Home> {
-  bool _dark = false, _hi = true, _p2w = true;
+  bool _dark = false, _hi = true, _p2w = true, _adLoaded = false;
+  bool _adsRemoved = false;
   int _tab = 0;
+  BannerAd? _banner;
   final _price = TextEditingController();
   final _input = TextEditingController();
   final _bName = TextEditingController();
@@ -69,16 +90,41 @@ class _HomeState extends State<Home> {
   String t(String hi, String en) => _hi ? hi : en;
   void _r() => setState(() {});
 
+  List<BoxShadow> get _sh => [
+        BoxShadow(
+            color: Colors.black.withValues(alpha: _dark ? 0.35 : 0.08),
+            blurRadius: 10,
+            offset: const Offset(0, 3)),
+      ];
+
   @override
   void initState() {
     super.initState();
     for (final c in [_price, _input, _bName, _bPrice, _bGrams]) {
       c.addListener(_r);
     }
+    _loadBanner();
+  }
+
+  void _loadBanner() {
+    if (_adsRemoved) return;
+    _banner = BannerAd(
+      adUnitId: kBannerId,
+      size: AdSize.banner,
+      request: const AdRequest(),
+      listener: BannerAdListener(
+        onAdLoaded: (_) => setState(() => _adLoaded = true),
+        onAdFailedToLoad: (ad, e) {
+          ad.dispose();
+          _banner = null;
+        },
+      ),
+    )..load();
   }
 
   @override
   void dispose() {
+    _banner?.dispose();
     for (final c in [_price, _input, _bName, _bPrice, _bGrams]) {
       c.dispose();
     }
@@ -158,71 +204,117 @@ class _HomeState extends State<Home> {
     _snack(msg);
   }
 
+  Future<void> _openTelegram() async {
+    try {
+      final bool ok = await launchUrl(Uri.parse(kTelegramLink), mode: LaunchMode.externalApplication);
+      if (!ok) _copy(kTelegramUser, t('कॉपी हो गया, Telegram में खोजिए', 'Copied, search it in Telegram'));
+    } catch (_) {
+      _copy(kTelegramUser, t('कॉपी हो गया, Telegram में खोजिए', 'Copied, search it in Telegram'));
+    }
+  }
+
+  void _removeAds() {
+    if (kPayReady) return; // real payment will be connected here
+    showDialog(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: Text(t('जल्द आ रहा है', 'Coming soon')),
+        content: Text(t('विज्ञापन हटाने की सुविधा बहुत जल्द शुरू होगी।', 'Ad-free option will be available very soon.')),
+        actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text('OK'))],
+      ),
+    );
+  }
+
   // ---------- small UI helpers ----------
   OutlineInputBorder _ob(Color c, double w) => OutlineInputBorder(
       borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: c, width: w));
 
   Widget _label(String s) => Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Text(s, style: TextStyle(fontSize: 19, fontWeight: FontWeight.w700, color: p.text)));
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Text(s, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: p.muted)));
 
   Widget _field(TextEditingController c, String hint,
-      {String prefix = '', String suffix = '', bool num = true, double size = 28}) {
-    return TextField(
-      controller: c,
-      cursorColor: p.accent,
-      keyboardType: num ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
-      inputFormatters: num ? [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))] : null,
-      style: TextStyle(fontSize: size, fontWeight: FontWeight.w700, color: p.text),
-      decoration: InputDecoration(
-        hintText: hint,
-        hintStyle: TextStyle(
-            fontSize: size - 6, fontWeight: FontWeight.w500, color: p.muted.withValues(alpha: 0.7)),
-        prefixText: prefix.isEmpty ? null : prefix,
-        suffixText: suffix.isEmpty ? null : suffix,
-        prefixStyle: TextStyle(fontSize: size, fontWeight: FontWeight.w700, color: p.accent),
-        suffixStyle: TextStyle(fontSize: size - 6, fontWeight: FontWeight.w700, color: p.accent),
-        filled: true,
-        fillColor: p.surface,
-        contentPadding: EdgeInsets.symmetric(horizontal: 18, vertical: size > 24 ? 18 : 14),
-        enabledBorder: _ob(p.line, 1.2),
-        focusedBorder: _ob(p.accent, 2),
+      {String prefix = '', String suffix = '', bool num = true, double size = 30}) {
+    final bool center = num;
+    return Container(
+      decoration: BoxDecoration(borderRadius: BorderRadius.circular(16), boxShadow: _sh),
+      child: TextField(
+        controller: c,
+        cursorColor: p.accent,
+        textAlign: center ? TextAlign.center : TextAlign.start,
+        keyboardType: num ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
+        inputFormatters: num ? [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))] : null,
+        style: TextStyle(fontSize: size, fontWeight: FontWeight.w600, color: p.text),
+        decoration: InputDecoration(
+          hintText: hint,
+          hintStyle: TextStyle(
+              fontSize: size - 8, fontWeight: FontWeight.w400, color: p.muted.withValues(alpha: 0.7)),
+          prefixIcon: center
+              ? (prefix.isEmpty
+                  ? const SizedBox(width: 52)
+                  : SizedBox(
+                      width: 52,
+                      child: Center(
+                          child: Text(prefix.trim(),
+                              style: TextStyle(fontSize: size - 2, fontWeight: FontWeight.w500, color: p.accentText)))))
+              : null,
+          suffixIcon: center
+              ? (suffix.isEmpty
+                  ? const SizedBox(width: 52)
+                  : SizedBox(
+                      width: 52,
+                      child: Center(
+                          child: Text(suffix.trim(),
+                              style: TextStyle(fontSize: size - 8, fontWeight: FontWeight.w500, color: p.accentText)))))
+              : null,
+          filled: true,
+          fillColor: p.surface,
+          contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: size > 24 ? 16 : 14),
+          enabledBorder: _ob(p.line, 1),
+          focusedBorder: _ob(p.accent, 2),
+        ),
       ),
     );
   }
 
   Widget _chips(TextEditingController c, List<(String, int)> items) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: items.map((it) {
-        final bool sel = c.text == '${it.$2}';
-        return GestureDetector(
+    final List<Widget> kids = [];
+    for (int i = 0; i < items.length; i++) {
+      final (String, int) it = items[i];
+      final bool sel = c.text == '${it.$2}';
+      if (i > 0) kids.add(const SizedBox(width: 6));
+      kids.add(Expanded(
+        child: GestureDetector(
           onTap: () {
             HapticFeedback.selectionClick();
             c.text = '${it.$2}';
           },
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 150),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
             decoration: BoxDecoration(
               color: sel ? p.accent : p.surface,
               borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: sel ? p.accent : p.line, width: 1.2),
+              border: Border.all(color: sel ? p.accent : p.line, width: 1),
+              boxShadow: sel ? [] : _sh,
             ),
-            child: Text(it.$1,
-                style: TextStyle(
-                    fontSize: 16, fontWeight: FontWeight.w700, color: sel ? p.onAccent : p.text)),
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(it.$1,
+                  style: TextStyle(
+                      fontSize: 15, fontWeight: FontWeight.w500, color: sel ? p.onAccent : p.text)),
+            ),
           ),
-        );
-      }).toList(),
-    );
+        ),
+      ));
+    }
+    return Row(children: kids);
   }
 
   Widget _btn(String label, IconData icon, VoidCallback? onTap, {bool filled = false}) {
     final RoundedRectangleBorder shape =
         RoundedRectangleBorder(borderRadius: BorderRadius.circular(16));
-    final TextStyle ts = const TextStyle(fontSize: 16, fontWeight: FontWeight.w700);
+    const TextStyle ts = TextStyle(fontSize: 16, fontWeight: FontWeight.w600);
     return SizedBox(
       height: 52,
       child: filled
@@ -231,16 +323,25 @@ class _HomeState extends State<Home> {
               icon: Icon(icon),
               label: Text(label, style: ts),
               style: FilledButton.styleFrom(
+                  elevation: 3,
+                  shadowColor: Colors.black.withValues(alpha: 0.3),
                   backgroundColor: p.accent,
                   foregroundColor: p.onAccent,
                   disabledBackgroundColor: p.line,
                   shape: shape))
-          : OutlinedButton.icon(
-              onPressed: onTap,
-              icon: Icon(icon),
-              label: Text(label, style: ts),
-              style: OutlinedButton.styleFrom(
-                  foregroundColor: p.accent, side: BorderSide(color: p.line, width: 1.4), shape: shape)),
+          : DecoratedBox(
+              decoration: BoxDecoration(borderRadius: BorderRadius.circular(16), boxShadow: _sh),
+              child: OutlinedButton.icon(
+                onPressed: onTap,
+                icon: Icon(icon),
+                label: Text(label, style: ts),
+                style: OutlinedButton.styleFrom(
+                    backgroundColor: p.surface,
+                    foregroundColor: p.accentText,
+                    side: BorderSide(color: p.line, width: 1),
+                    shape: shape),
+              ),
+            ),
     );
   }
 
@@ -250,7 +351,8 @@ class _HomeState extends State<Home> {
         decoration: BoxDecoration(
             color: p.surface,
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: p.line, width: 1.2)),
+            border: Border.all(color: p.line, width: 1),
+            boxShadow: _sh),
         child: child,
       );
 
@@ -259,24 +361,24 @@ class _HomeState extends State<Home> {
         padding: const EdgeInsets.fromLTRB(20, 12, 6, 6),
         child: Row(children: [
           Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(color: p.accent, shape: BoxShape.circle),
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(color: p.accent, shape: BoxShape.circle, boxShadow: _sh),
             child: Icon(Icons.balance_rounded, color: p.onAccent),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Text(t('किराना कैलकुलेटर', 'Kirana Calculator'),
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: p.text)),
+                style: TextStyle(fontSize: 21, fontWeight: FontWeight.w600, color: p.text)),
           ),
           TextButton(
             onPressed: () => setState(() => _hi = !_hi),
             child: Text(_hi ? 'EN' : 'हिं',
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: p.accent)),
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: p.accentText)),
           ),
           IconButton(
             onPressed: () => setState(() => _dark = !_dark),
-            icon: Icon(_dark ? Icons.light_mode_rounded : Icons.dark_mode_rounded, color: p.accent),
+            icon: Icon(_dark ? Icons.light_mode_rounded : Icons.dark_mode_rounded, color: p.accentText),
           ),
         ]),
       );
@@ -286,18 +388,18 @@ class _HomeState extends State<Home> {
     final Res? r = _res;
     return ListView(
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
       children: [
-        _label(t('एक किलो की कीमत (₹)', 'Price per kg (₹)')),
-        _field(_price, t('कीमत डालें', 'Enter price'), prefix: '₹ '),
+        _label(t('एक किलो की कीमत', 'Price per kg')),
+        _field(_price, t('कीमत डालें', 'Enter price'), prefix: '₹'),
         const SizedBox(height: 10),
         _chips(_price, const [('₹40', 40), ('₹50', 50), ('₹75', 75), ('₹100', 100), ('₹120', 120)]),
-        const SizedBox(height: 22),
+        const SizedBox(height: 20),
         _modeToggle(),
-        const SizedBox(height: 22),
+        const SizedBox(height: 20),
         _label(_p2w ? t('ग्राहक कितने का लेगा', 'Customer amount') : t('कितना वज़न चाहिए', 'Weight needed')),
         _field(_input, _p2w ? t('रकम डालें', 'Enter amount') : t('ग्राम डालें', 'Enter grams'),
-            prefix: _p2w ? '₹ ' : '', suffix: _p2w ? '' : ' g'),
+            prefix: _p2w ? '₹' : '', suffix: _p2w ? '' : 'g'),
         const SizedBox(height: 10),
         _p2w
             ? _chips(_input, const [('₹10', 10), ('₹20', 20), ('₹50', 50), ('₹100', 100)])
@@ -308,8 +410,13 @@ class _HomeState extends State<Home> {
                 (t('आधा किलो', '1/2 kg'), 500),
                 (t('1 किलो', '1 kg'), 1000),
               ]),
-        const SizedBox(height: 24),
-        _resultCard(r),
+        const SizedBox(height: 22),
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 250),
+          transitionBuilder: (child, anim) =>
+              FadeTransition(opacity: anim, child: ScaleTransition(scale: Tween<double>(begin: 0.96, end: 1).animate(anim), child: child)),
+          child: KeyedSubtree(key: ValueKey(r?.big ?? 'empty'), child: _resultCard(r)),
+        ),
         if (r != null) ...[
           const SizedBox(height: 14),
           Row(children: [
@@ -328,8 +435,10 @@ class _HomeState extends State<Home> {
   }
 
   Widget _modeToggle() {
-    Widget side(bool p2w, String sym, String label) {
+    Widget side(bool p2w, bool rupeeFirst, String label) {
       final bool sel = _p2w == p2w;
+      final Color c = sel ? p.onAccent : p.muted;
+      final TextStyle ts = TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: c);
       return Expanded(
         child: GestureDetector(
           onTap: () {
@@ -341,17 +450,18 @@ class _HomeState extends State<Home> {
           },
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 200),
-            padding: const EdgeInsets.symmetric(vertical: 14),
+            padding: const EdgeInsets.symmetric(vertical: 11),
             decoration: BoxDecoration(
                 color: sel ? p.accent : Colors.transparent, borderRadius: BorderRadius.circular(16)),
             child: Column(children: [
-              Text(sym,
-                  style: TextStyle(
-                      fontSize: 24, fontWeight: FontWeight.w800, color: sel ? p.onAccent : p.text)),
-              const SizedBox(height: 2),
-              Text(label,
-                  style: TextStyle(
-                      fontSize: 15, fontWeight: FontWeight.w700, color: sel ? p.onAccent : p.muted)),
+              Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                Text(rupeeFirst ? '₹' : 'g', style: ts),
+                Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    child: Icon(Icons.arrow_forward_rounded, size: 18, color: c)),
+                Text(rupeeFirst ? 'g' : '₹', style: ts),
+              ]),
+              Text(label, style: TextStyle(fontSize: 13, color: sel ? p.onAccent.withValues(alpha: 0.9) : p.muted)),
             ]),
           ),
         ),
@@ -363,10 +473,11 @@ class _HomeState extends State<Home> {
       decoration: BoxDecoration(
           color: p.surface,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: p.line, width: 1.2)),
+          border: Border.all(color: p.line, width: 1),
+          boxShadow: _sh),
       child: Row(children: [
-        side(true, '₹ → g', t('कीमत से वज़न', 'Price → Weight')),
-        side(false, 'g → ₹', t('वज़न से कीमत', 'Weight → Price')),
+        side(true, true, t('कीमत से वज़न', 'Price to Weight')),
+        side(false, false, t('वज़न से कीमत', 'Weight to Price')),
       ]),
     );
   }
@@ -377,30 +488,27 @@ class _HomeState extends State<Home> {
         Icon(Icons.touch_app_outlined, size: 30, color: p.muted),
         const SizedBox(height: 8),
         Text(t('कीमत और रकम डालिए, जवाब यहाँ दिखेगा', 'Enter the values, the answer shows here'),
-            textAlign: TextAlign.center, style: TextStyle(fontSize: 16, color: p.muted)),
+            textAlign: TextAlign.center, style: TextStyle(fontSize: 15, color: p.muted)),
       ]));
     }
     final Color on = p.onAccent;
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 16),
-      decoration: BoxDecoration(color: p.accent, borderRadius: BorderRadius.circular(24)),
+      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+      decoration: BoxDecoration(color: p.accent, borderRadius: BorderRadius.circular(24), boxShadow: _sh),
       child: Column(children: [
         Text(_p2w ? t('वज़न', 'Weight') : t('कुल कीमत', 'Amount'),
-            style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: on.withValues(alpha: 0.8))),
+            style: TextStyle(fontSize: 15, color: on.withValues(alpha: 0.9))),
         FittedBox(
           fit: BoxFit.scaleDown,
-          child: Text(r.big, style: TextStyle(fontSize: 68, fontWeight: FontWeight.w800, color: on)),
+          child: Text(r.big, style: TextStyle(fontSize: 64, fontWeight: FontWeight.w600, color: on)),
         ),
-        Divider(height: 22, color: on.withValues(alpha: 0.25)),
-        Text(r.sub,
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: on)),
+        Divider(height: 20, color: on.withValues(alpha: 0.3)),
+        Text(r.sub, textAlign: TextAlign.center, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: on)),
         if (r.note.isNotEmpty)
           Padding(
             padding: const EdgeInsets.only(top: 4),
-            child: Text(r.note,
-                style: TextStyle(fontSize: 13, fontStyle: FontStyle.italic, color: on.withValues(alpha: 0.75))),
+            child: Text(r.note, style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: on.withValues(alpha: 0.8))),
           ),
       ]),
     );
@@ -410,7 +518,7 @@ class _HomeState extends State<Home> {
     final bool canAdd = (double.tryParse(_bPrice.text) ?? 0) > 0 && (double.tryParse(_bGrams.text) ?? 0) > 0;
     return ListView(
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
       children: [
         _card(Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           _label(t('सामान जोड़ें', 'Add item')),
@@ -436,25 +544,22 @@ class _HomeState extends State<Home> {
         ])),
         const SizedBox(height: 16),
         if (_bill.isEmpty)
-          _card(Center(
-              child: Text(t('बिल अभी खाली है', 'Bill is empty'),
-                  style: TextStyle(fontSize: 16, color: p.muted))))
+          _card(Center(child: Text(t('बिल अभी खाली है', 'Bill is empty'), style: TextStyle(fontSize: 15, color: p.muted))))
         else ...[
           ...List.generate(_bill.length, (i) {
             final BillItem it = _bill[i];
             final String nm = it.name.isEmpty ? '${t('सामान', 'Item')} ${_bill.length - i}' : it.name;
             return Padding(
-              padding: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.only(bottom: 10),
               child: _card(Row(children: [
                 Expanded(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(nm, style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: p.text)),
+                    Text(nm, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: p.text)),
                     Text('${n(it.grams)}g × ₹${n(it.price)}/${t('किलो', 'kg')}',
-                        style: TextStyle(fontSize: 14, color: p.muted)),
+                        style: TextStyle(fontSize: 13, color: p.muted)),
                   ]),
                 ),
-                Text('₹${m(it.amt)}',
-                    style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: p.accent)),
+                Text('₹${m(it.amt)}', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: p.accentText)),
                 IconButton(
                   onPressed: () => setState(() => _bill.removeAt(i)),
                   icon: Icon(Icons.close_rounded, color: p.muted),
@@ -462,16 +567,14 @@ class _HomeState extends State<Home> {
               ])),
             );
           }),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(color: p.accent, borderRadius: BorderRadius.circular(22)),
+            decoration: BoxDecoration(color: p.accent, borderRadius: BorderRadius.circular(22), boxShadow: _sh),
             child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              Text(t('कुल', 'Total'),
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: p.onAccent)),
-              Text('₹${m(_total)}',
-                  style: TextStyle(fontSize: 34, fontWeight: FontWeight.w800, color: p.onAccent)),
+              Text(t('कुल', 'Total'), style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500, color: p.onAccent)),
+              Text('₹${m(_total)}', style: TextStyle(fontSize: 32, fontWeight: FontWeight.w600, color: p.onAccent)),
             ]),
           ),
           const SizedBox(height: 12),
@@ -496,82 +599,91 @@ class _HomeState extends State<Home> {
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           Icon(Icons.history_rounded, size: 48, color: p.muted),
           const SizedBox(height: 10),
-          Text(t('अभी कोई हिस्ट्री नहीं', 'No history yet'), style: TextStyle(fontSize: 17, color: p.muted)),
+          Text(t('अभी कोई हिस्ट्री नहीं', 'No history yet'), style: TextStyle(fontSize: 16, color: p.muted)),
           const SizedBox(height: 4),
           Text(t('कैलकुलेटर में "सेव करें" दबाइए', 'Tap "Save" in the calculator'),
-              style: TextStyle(fontSize: 14, color: p.muted)),
+              style: TextStyle(fontSize: 13, color: p.muted)),
         ]),
       );
     }
     return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
       children: [
         ..._hist.map((h) => Padding(
-              padding: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.only(bottom: 10),
               child: _card(Row(children: [
                 Expanded(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(h.result, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: p.text)),
-                    Text(h.rate, style: TextStyle(fontSize: 14, color: p.muted)),
+                    Text(h.result, style: TextStyle(fontSize: 19, fontWeight: FontWeight.w600, color: p.text)),
+                    Text(h.rate, style: TextStyle(fontSize: 13, color: p.muted)),
                   ]),
                 ),
-                Text(h.time, style: TextStyle(fontSize: 14, color: p.muted)),
+                Text(h.time, style: TextStyle(fontSize: 13, color: p.muted)),
               ])),
             )),
-        const SizedBox(height: 8),
-        _btn(t('हिस्ट्री साफ़ करें', 'Clear history'), Icons.delete_outline_rounded,
-            () => setState(() => _hist.clear())),
+        const SizedBox(height: 6),
+        _btn(t('हिस्ट्री साफ़ करें', 'Clear history'), Icons.delete_outline_rounded, () => setState(() => _hist.clear())),
       ],
     );
   }
 
   Widget _helpPage() => ListView(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
         children: [
           _card(Column(children: [
             Container(
-              width: 60,
-              height: 60,
+              width: 58,
+              height: 58,
               decoration: BoxDecoration(color: p.accent, shape: BoxShape.circle),
-              child: Icon(Icons.send_rounded, color: p.onAccent, size: 28),
+              child: Icon(Icons.send_rounded, color: p.onAccent, size: 26),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 12),
             Text(t('सहायता चाहिए?', 'Need help?'),
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: p.text)),
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: p.text)),
             const SizedBox(height: 6),
             Text(t('कोई सवाल या सुझाव हो तो Telegram पर लिखिए', 'Message us on Telegram for any question or idea'),
-                textAlign: TextAlign.center, style: TextStyle(fontSize: 15, color: p.muted)),
-            const SizedBox(height: 16),
-            Text(kTelegramUser,
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: p.accent)),
-            const SizedBox(height: 16),
+                textAlign: TextAlign.center, style: TextStyle(fontSize: 14, color: p.muted)),
+            const SizedBox(height: 12),
+            Text(kTelegramUser, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: p.accentText)),
+            const SizedBox(height: 14),
             SizedBox(
-              width: double.infinity,
-              // Play Store version: use launchUrl(Uri.parse('https://t.me/Itz_Luxurious'),
-              //     mode: LaunchMode.externalApplication) instead of copying.
-              child: _btn(t('यूज़रनेम कॉपी करें', 'Copy username'), Icons.copy_rounded,
-                  () => _copy(kTelegramUser, t('कॉपी हो गया, Telegram में खोजिए', 'Copied, search it in Telegram')),
-                  filled: true),
-            ),
+                width: double.infinity,
+                child: _btn(t('Telegram खोलें', 'Open Telegram'), Icons.open_in_new_rounded, _openTelegram, filled: true)),
           ])),
+          if (!_adsRemoved) ...[
+            const SizedBox(height: 14),
+            _card(Row(children: [
+              Icon(Icons.block_rounded, color: p.accentText),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(t('विज्ञापन हटाएँ', 'Remove ads'),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: p.text)),
+              ),
+              TextButton(
+                onPressed: _removeAds,
+                child: Text(kRemoveAdsPrice,
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: p.accentText)),
+              ),
+            ])),
+          ],
           const SizedBox(height: 16),
-          Center(child: Text('Kirana Calculator  v1.0.0', style: TextStyle(fontSize: 13, color: p.muted))),
+          Center(child: Text('Kirana Calculator  v1.0.0', style: TextStyle(fontSize: 12, color: p.muted))),
         ],
       );
 
   @override
   Widget build(BuildContext context) {
     final List<Widget> pages = [_calcPage(), _billPage(), _historyPage(), _helpPage()];
-    final Color inactive = p.muted;
     Widget dest(IconData i, IconData si, String label) => NavigationDestination(
-          icon: Icon(i, color: inactive),
-          selectedIcon: Icon(si, color: p.accent),
+          icon: Icon(i, color: p.muted),
+          selectedIcon: Icon(si, color: p.accentText),
           label: label,
         );
+    final bool showAd = !_adsRemoved && _banner != null && _adLoaded;
     return Scaffold(
       backgroundColor: p.bg,
       body: Stack(children: [
-        Positioned.fill(child: _Pattern(color: p.text.withValues(alpha: _dark ? 0.05 : 0.06))),
+        Positioned.fill(child: _Pattern(color: p.text.withValues(alpha: _dark ? 0.05 : 0.05))),
         SafeArea(
           child: Column(children: [
             _header(),
@@ -579,28 +691,42 @@ class _HomeState extends State<Home> {
           ]),
         ),
       ]),
-      bottomNavigationBar: NavigationBarTheme(
-        data: NavigationBarThemeData(
-          backgroundColor: p.surface,
-          indicatorColor: p.accent.withValues(alpha: 0.18),
-          labelTextStyle: WidgetStatePropertyAll(
-              TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: p.text)),
+      bottomNavigationBar: Column(mainAxisSize: MainAxisSize.min, children: [
+        if (showAd)
+          Container(
+            color: p.surface,
+            width: double.infinity,
+            alignment: Alignment.center,
+            height: _banner!.size.height.toDouble(),
+            child: SizedBox(
+              width: _banner!.size.width.toDouble(),
+              height: _banner!.size.height.toDouble(),
+              child: AdWidget(ad: _banner!),
+            ),
+          ),
+        NavigationBarTheme(
+          data: NavigationBarThemeData(
+            backgroundColor: p.surface,
+            indicatorColor: p.accent.withValues(alpha: 0.2),
+            labelTextStyle: WidgetStatePropertyAll(
+                TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: p.text)),
+          ),
+          child: NavigationBar(
+            selectedIndex: _tab,
+            onDestinationSelected: (i) {
+              FocusScope.of(context).unfocus();
+              setState(() => _tab = i);
+            },
+            destinations: [
+              dest(Icons.calculate_outlined, Icons.calculate_rounded, t('कैलकुलेटर', 'Calculator')),
+              dest(Icons.receipt_long_outlined, Icons.receipt_long_rounded,
+                  _bill.isEmpty ? t('बिल', 'Bill') : '${t('बिल', 'Bill')} (${_bill.length})'),
+              dest(Icons.history_rounded, Icons.history_rounded, t('हिस्ट्री', 'History')),
+              dest(Icons.support_agent_outlined, Icons.support_agent_rounded, t('सहायता', 'Help')),
+            ],
+          ),
         ),
-        child: NavigationBar(
-          selectedIndex: _tab,
-          onDestinationSelected: (i) {
-            FocusScope.of(context).unfocus();
-            setState(() => _tab = i);
-          },
-          destinations: [
-            dest(Icons.calculate_outlined, Icons.calculate_rounded, t('कैलकुलेटर', 'Calculator')),
-            dest(Icons.receipt_long_outlined, Icons.receipt_long_rounded,
-                _bill.isEmpty ? t('बिल', 'Bill') : '${t('बिल', 'Bill')} (${_bill.length})'),
-            dest(Icons.history_rounded, Icons.history_rounded, t('हिस्ट्री', 'History')),
-            dest(Icons.support_agent_outlined, Icons.support_agent_rounded, t('सहायता', 'Help')),
-          ],
-        ),
-      ),
+      ]),
     );
   }
 }
