@@ -1,21 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 // ---------- Settings ----------
 const String kTelegramUser = '@Itz_Luxurious';
 const String kTelegramLink = 'https://t.me/Itz_Luxurious';
-// Google's official TEST banner id. Replace with your real AdMob banner id before the Play Store release.
-const String kBannerId = 'ca-app-pub-3940256099942544/6300978111';
-// Set to true only after Google Play payment is connected.
-const bool kPayReady = false;
-const String kRemoveAdsPrice = '₹49';
 // ------------------------------
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  MobileAds.instance.initialize();
   runApp(const KiranaApp());
 }
 
@@ -72,10 +65,8 @@ class Home extends StatefulWidget {
 }
 
 class _HomeState extends State<Home> {
-  bool _dark = false, _hi = true, _p2w = true, _adLoaded = false;
-  bool _adsRemoved = false;
+  bool _dark = false, _hi = true, _p2w = true;
   int _tab = 0;
-  BannerAd? _banner;
   final _price = TextEditingController();
   final _input = TextEditingController();
   final _bName = TextEditingController();
@@ -101,28 +92,10 @@ class _HomeState extends State<Home> {
     for (final c in [_price, _input, _bName, _bPrice, _bGrams]) {
       c.addListener(_r);
     }
-    _loadBanner();
-  }
-
-  void _loadBanner() {
-    if (_adsRemoved) return;
-    _banner = BannerAd(
-      adUnitId: kBannerId,
-      size: AdSize.banner,
-      request: const AdRequest(),
-      listener: BannerAdListener(
-        onAdLoaded: (_) => setState(() => _adLoaded = true),
-        onAdFailedToLoad: (ad, e) {
-          ad.dispose();
-          _banner = null;
-        },
-      ),
-    )..load();
   }
 
   @override
   void dispose() {
-    _banner?.dispose();
     for (final c in [_price, _input, _bName, _bPrice, _bGrams]) {
       c.dispose();
     }
@@ -209,18 +182,6 @@ class _HomeState extends State<Home> {
     } catch (_) {
       _copy(kTelegramUser, t('कॉपी हो गया, Telegram में खोजिए', 'Copied, search it in Telegram'));
     }
-  }
-
-  void _removeAds() {
-    if (kPayReady) return; // real payment will be connected here
-    showDialog(
-      context: context,
-      builder: (c) => AlertDialog(
-        title: Text(t('जल्द आ रहा है', 'Coming soon')),
-        content: Text(t('विज्ञापन हटाने की सुविधा बहुत जल्द शुरू होगी।', 'Ad-free option will be available very soon.')),
-        actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text('OK'))],
-      ),
-    );
   }
 
   // ---------- small UI helpers ----------
@@ -648,22 +609,6 @@ class _HomeState extends State<Home> {
                 width: double.infinity,
                 child: _btn(t('Telegram खोलें', 'Open Telegram'), Icons.open_in_new_rounded, _openTelegram, filled: true)),
           ])),
-          if (!_adsRemoved) ...[
-            const SizedBox(height: 14),
-            _card(Row(children: [
-              Icon(Icons.block_rounded, color: p.accentText),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(t('विज्ञापन हटाएँ', 'Remove ads'),
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: p.text)),
-              ),
-              TextButton(
-                onPressed: _removeAds,
-                child: Text(kRemoveAdsPrice,
-                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: p.accentText)),
-              ),
-            ])),
-          ],
           const SizedBox(height: 16),
           Center(child: Text('Kirana Calculator  v1.0.0', style: TextStyle(fontSize: 12, color: p.muted))),
         ],
@@ -677,7 +622,6 @@ class _HomeState extends State<Home> {
           selectedIcon: Icon(si, color: p.accentText),
           label: label,
         );
-    final bool showAd = !_adsRemoved && _banner != null && _adLoaded;
     return Scaffold(
       backgroundColor: p.bg,
       body: Stack(children: [
@@ -690,18 +634,6 @@ class _HomeState extends State<Home> {
         ),
       ]),
       bottomNavigationBar: Column(mainAxisSize: MainAxisSize.min, children: [
-        if (showAd)
-          Container(
-            color: p.surface,
-            width: double.infinity,
-            alignment: Alignment.center,
-            height: _banner!.size.height.toDouble(),
-            child: SizedBox(
-              width: _banner!.size.width.toDouble(),
-              height: _banner!.size.height.toDouble(),
-              child: AdWidget(ad: _banner!),
-            ),
-          ),
         NavigationBarTheme(
           data: NavigationBarThemeData(
             backgroundColor: p.surface,
