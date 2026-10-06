@@ -27,7 +27,7 @@ jobs:
           cat android/app/src/main/AndroidManifest.xml
           sed -i 's/flutter.minSdkVersion/24/' android/app/build.gradle.kts android/app/build.gradle 2>/dev/null || true
       - run: flutter pub get
-      - run: flutter build apk --release
+      - run: flutter build apk --release --no-shrink
       - uses: actions/upload-artifact@v4
         with:
           name: kirana-apk
