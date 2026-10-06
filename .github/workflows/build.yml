@@ -15,8 +15,16 @@ jobs:
         run: flutter create --org com.itzluxurious --project-name kirana_calculator --platforms=android .
       - name: Android setup (internet, test ads, minSdk)
         run: |
-          sed -i 's#<application#<uses-permission android:name="android.permission.INTERNET"/><application#' android/app/src/main/AndroidManifest.xml
-          sed -i 's#</application>#<meta-data android:name="com.google.android.gms.ads.APPLICATION_ID" android:value="ca-app-pub-3940256099942544~3347511713"/></application>#' android/app/src/main/AndroidManifest.xml
+          python3 - <<'PY'
+          import re
+          f = 'android/app/src/main/AndroidManifest.xml'
+          s = open(f).read()
+          s = s.replace('android:label="kirana_calculator"', 'android:label="Kirana Calculator"')
+          s = s.replace('<application', '<uses-permission android:name="android.permission.INTERNET"/>\n    <application', 1)
+          s = re.sub(r'(<application[^>]*>)', r'\1\n        <meta-data android:name="com.google.android.gms.ads.APPLICATION_ID" android:value="ca-app-pub-3940256099942544~3347511713"/>', s, count=1)
+          open(f, 'w').write(s)
+          PY
+          cat android/app/src/main/AndroidManifest.xml
           sed -i 's/flutter.minSdkVersion/24/' android/app/build.gradle.kts android/app/build.gradle 2>/dev/null || true
       - run: flutter pub get
       - run: flutter build apk --release
@@ -24,3 +32,23 @@ jobs:
         with:
           name: kirana-apk
           path: build/app/outputs/flutter-apk/app-release.apk
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Launch test on emulator (shows crash log)
+        continue-on-error: true
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          arch: x86_64
+          script: |
+            adb install build/app/outputs/flutter-apk/app-release.apk
+            adb logcat -c
+            adb shell monkey -p com.itzluxurious.kirana_calculator -c android.intent.category.LAUNCHER 1
+            sleep 20
+            echo ===== CRASH LOG =====
+            adb logcat -d -b crash | head -80
+            echo ===== ERRORS =====
+            adb logcat -d AndroidRuntime:E flutter:V *:S | head -80
