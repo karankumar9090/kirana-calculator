@@ -9,7 +9,6 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  google_mobile_ads: any
   url_launcher: any
 
 flutter:
