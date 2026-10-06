@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -61,7 +60,6 @@ class KiranaApp extends StatelessWidget {
         theme: ThemeData(
           useMaterial3: true,
           colorSchemeSeed: const Color(0xFF4A9BEA),
-          textTheme: GoogleFonts.notoSansDevanagariTextTheme(),
         ),
         home: const Home(),
       );
