@@ -48,7 +48,7 @@ class KiranaApp extends StatelessWidget {
   const KiranaApp({super.key});
   @override
   Widget build(BuildContext context) => MaterialApp(
-        title: 'Kirana Calculator',
+        title: 'Kirana Kata',
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
           useMaterial3: true,
@@ -327,7 +327,7 @@ class _HomeState extends State<Home> {
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(t('किराना कैलकुलेटर', 'Kirana Calculator'),
+            child: Text(t('किराना काँटा', 'Kirana Kata'),
                 style: TextStyle(fontSize: 21, fontWeight: FontWeight.w600, color: p.text)),
           ),
           TextButton(
@@ -610,7 +610,7 @@ class _HomeState extends State<Home> {
                 child: _btn(t('Telegram खोलें', 'Open Telegram'), Icons.open_in_new_rounded, _openTelegram, filled: true)),
           ])),
           const SizedBox(height: 16),
-          Center(child: Text('Kirana Calculator  v1.0.0', style: TextStyle(fontSize: 12, color: p.muted))),
+          Center(child: Text('Kirana Kata  v1.0.0', style: TextStyle(fontSize: 12, color: p.muted))),
         ],
       );
 
