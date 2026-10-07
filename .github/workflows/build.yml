@@ -18,11 +18,30 @@ jobs:
           python3 - <<'PY'
           f = 'android/app/src/main/AndroidManifest.xml'
           s = open(f).read()
-          s = s.replace('android:label="kirana_calculator"', 'android:label="Kirana Calculator"')
+          s = s.replace('android:label="kirana_calculator"', 'android:label="Kirana Kata"')
           s = s.replace('<application', '<uses-permission android:name="android.permission.INTERNET"/>\n    <application', 1)
           open(f, 'w').write(s)
           PY
           cat android/app/src/main/AndroidManifest.xml
+      - name: App icon
+        run: |
+          if [ -f icon.png ]; then
+            python3 -c "import PIL" 2>/dev/null || pip install --break-system-packages pillow || pip install pillow
+            python3 - <<'PY'
+          from PIL import Image, ImageDraw
+          src = Image.open('icon.png').convert('RGBA')
+          sizes = {'mdpi': 48, 'hdpi': 72, 'xhdpi': 96, 'xxhdpi': 144, 'xxxhdpi': 192}
+          for k, sz in sizes.items():
+              im = src.resize((sz, sz), Image.LANCZOS)
+              mask = Image.new('L', (sz * 4, sz * 4), 0)
+              ImageDraw.Draw(mask).rounded_rectangle((0, 0, sz * 4 - 1, sz * 4 - 1), radius=int(sz * 4 * 0.22), fill=255)
+              im.putalpha(mask.resize((sz, sz), Image.LANCZOS))
+              im.save('android/app/src/main/res/mipmap-%s/ic_launcher.png' % k)
+          print('icon done')
+          PY
+          else
+            echo "icon.png not found, using default icon"
+          fi
       - run: flutter pub get
       - run: flutter build apk --release
       - uses: actions/upload-artifact@v4
